@@ -153,12 +153,13 @@ export const generateGame = async (
     - PROFESSIONAL UI: Create a stylized, responsive HUD using HTML/CSS overlays. Include health bars, score counters, and context-sensitive prompts.
     - GAME JUICE: Implement screen shake, hit-stop effects, and smooth tweening (using TWEEN.js or simple lerping) for all UI and mechanical transitions.
 
-    VII. DETAILED ASSET MAPPING & BINDING:
-    - PRE-SYNTHESIS AUDIT: Analyze the 'assets' list semantically. If a 'Sword' is present, implement a combat system. If a 'Key' is present, implement a locking mechanism.
-    - HOLISTIC MAPPING: Every asset MUST be mapped to a functional game entity with a clear role.
-    - CHARACTERS: Bind to SkinnedMeshes or hierarchical groups. Implement sophisticated state-based animations (Idle, Walk, Run, Jump, Fall, Land, Attack, Hit, Die) using THREE.AnimationMixer.
+    VII. DETAILED ASSET MAPPING & BINDING (CRITICAL ASSET MANDATE):
+    - YOU MUST USE THE UPLOADED ASSETS: If the 'assets' list contains 3D models (.glb, .gltf, .fbx), images, or audio, you MUST load and use them in the game! Do NOT just use basic BoxGeometry or SphereGeometry if a character or object model was provided.
+    - LOADING MODELS: Write the actual Three.js code to load them (e.g., use THREE.GLTFLoader() for .glb/.gltf files, THREE.FBXLoader() for .fbx).
+    - PRE-SYNTHESIS AUDIT: Analyze the 'assets' list semantically. Map every asset to a functional game entity with a clear role.
+    - CHARACTERS: Bind to SkinnedMeshes or hierarchical groups. Implement sophisticated state-based animations (Idle, Walk, Run, Jump, Fall, Land, Attack, Hit, Die) using THREE.AnimationMixer if animations are present.
     - ENVIRONMENT: Map to static geometry with optimized collision hulls (Box, Sphere, or Convex Polyhedron).
-    - Use 'window.getAssetUrl(name)' for all binary loading. DO NOT define this function yourself; it is provided by the environment.
+    - LOADING PATHS: Use 'window.getAssetUrl(name)' to get the URL for ANY asset you load. Example: \`gltfLoader.load(window.getAssetUrl('spiderman.glb'), ...)\`. DO NOT define this function yourself.
 
     VIII. SYSTEMIC INTERDEPENDENCY & EMERGENCE:
     - CROSS-SYSTEM SYNERGY: Design systems that interact (e.g., weather affecting friction, damage types affecting environment assets).
@@ -275,7 +276,13 @@ export const generateGame = async (
   const config: any = {
     systemInstruction,
     responseMimeType: "application/json",
-    maxOutputTokens: 8192
+    maxOutputTokens: 8192,
+    safetySettings: [
+      { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+      { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+      { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+      { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" }
+    ]
   };
 
   return executeWithNeuralResilience(async (ai) => {
