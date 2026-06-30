@@ -101,9 +101,14 @@ export const generateGame = async (
     - Keep the entire HTML/JS payload under 6,000 tokens (or ~25,000 characters) so it never gets truncated.
     - Focus on a solid, working implementation of the core mechanics instead of writing complex custom physics or AI systems from scratch.
     - Always ensure all tags, brackets, and parentheses are closed. Never leave code unfinished.
-    CRITICAL: You MUST include the Three.js library via CDN in the head tag. Do NOT assume it is injected. Example:
-    \`<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>\`
-    If you need extensions (like OrbitControls or GLTFLoader), include them appropriately, ensuring they match the Three.js version.
+    CRITICAL THREE.JS CDN RULES (READ CAREFULLY):
+    - ALWAYS include Three.js r128 via CDN: \`<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>\`
+    - For GLTFLoader (loading .glb/.gltf files): \`<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>\` — call it as \`new THREE.GLTFLoader()\`
+    - For FBXLoader (loading .fbx files): \`<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>\`
+    - NEVER USE PointerLockControls — it crashes. For FPS mouse look, implement it MANUALLY using \`document.addEventListener('mousemove', ...)\` and tracking pitch/yaw yourself.
+    - NEVER use OrbitControls, TransformControls or any other Controls class — they are not reliable in this environment. Implement camera movement manually.
+    - NEVER use THREE.CSS2DRenderer or THREE.CSS3DRenderer.
+    - All CDN scripts MUST be placed in the <head> before any game code.
     
     I. MULTIMODAL ANALYSIS & DEEP COMPREHENSION (CRITICAL):
     - When the user provides images, video, or a text prompt, perform a DEEP, EXHAUSTIVE ANALYSIS before generating code. Focus intensely on exactly what the user is showing and asking for.
@@ -153,13 +158,15 @@ export const generateGame = async (
     - PROFESSIONAL UI: Create a stylized, responsive HUD using HTML/CSS overlays. Include health bars, score counters, and context-sensitive prompts.
     - GAME JUICE: Implement screen shake, hit-stop effects, and smooth tweening (using TWEEN.js or simple lerping) for all UI and mechanical transitions.
 
-    VII. DETAILED ASSET MAPPING & BINDING (CRITICAL ASSET MANDATE):
-    - YOU MUST USE THE UPLOADED ASSETS: If the 'assets' list contains 3D models (.glb, .gltf, .fbx), images, or audio, you MUST load and use them in the game! Do NOT just use basic BoxGeometry or SphereGeometry if a character or object model was provided.
-    - LOADING MODELS: Write the actual Three.js code to load them (e.g., use THREE.GLTFLoader() for .glb/.gltf files, THREE.FBXLoader() for .fbx).
-    - PRE-SYNTHESIS AUDIT: Analyze the 'assets' list semantically. Map every asset to a functional game entity with a clear role.
-    - CHARACTERS: Bind to SkinnedMeshes or hierarchical groups. Implement sophisticated state-based animations (Idle, Walk, Run, Jump, Fall, Land, Attack, Hit, Die) using THREE.AnimationMixer if animations are present.
-    - ENVIRONMENT: Map to static geometry with optimized collision hulls (Box, Sphere, or Convex Polyhedron).
-    - LOADING PATHS: Use 'window.getAssetUrl(name)' to get the URL for ANY asset you load. Example: \`gltfLoader.load(window.getAssetUrl('spiderman.glb'), ...)\`. DO NOT define this function yourself.
+    VII. ASSET LOADING (ABSOLUTE TOP PRIORITY — DO NOT SKIP):
+    - MANDATORY: If ANY assets are listed in 'Available Assets', you MUST load ALL of them. Using BoxGeometry or primitive shapes when 3D models exist is FORBIDDEN.
+    - TO LOAD A .GLB or .GLTF MODEL: Include the GLTFLoader CDN script, then use: \`const loader = new THREE.GLTFLoader(); loader.load(window.getAssetUrl('FILENAME.glb'), (gltf) => { const model = gltf.scene; scene.add(model); });\`
+    - TO LOAD A .FBX MODEL: Include the FBXLoader CDN script, then use: \`const loader = new THREE.FBXLoader(); loader.load(window.getAssetUrl('FILENAME.fbx'), (object) => { scene.add(object); });\`
+    - TO PLAY AUDIO: \`const audio = new Audio(window.getAssetUrl('FILENAME.mp3')); audio.loop = true; audio.play();\`
+    - window.getAssetUrl('name') is ALWAYS available — do NOT define it yourself, just call it.
+    - SHOW A LOADING SCREEN while assets load. Only start the game loop AFTER all assets are loaded.
+    - If an asset fails to load, fall back to a simple colored box so the game still runs.
+    - ANIMATIONS: If the model has animations, always set up an AnimationMixer and play the first animation clip.
 
     VIII. SYSTEMIC INTERDEPENDENCY & EMERGENCE:
     - CROSS-SYSTEM SYNERGY: Design systems that interact (e.g., weather affecting friction, damage types affecting environment assets).
@@ -246,9 +253,13 @@ export const generateGame = async (
 
   const formatInstruction = `\n\nIMPORTANT: Respond ONLY in the delimiter format shown. Start with ===TITLE=== and end with ===END===. Do not wrap your response in JSON or markdown.`;
 
-  const userPrompt = isRefinement 
-    ? `REFINEMENT REQUEST: ${prompt}\n\nAvailable Assets: ${JSON.stringify(assetMetadata)}\n\nCurrent Code:\n${currentCode}${formatInstruction}`
-    : `NEW GAME REQUEST: ${prompt}\n\nAvailable Assets: ${JSON.stringify(assetMetadata)}${formatInstruction}`;
+  const assetFileList = assets.length > 0
+    ? `\n\n🎮 UPLOADED ASSETS — YOU MUST LOAD ALL OF THESE:\n${assets.map(a => `  • "${a.name}" (type: ${a.type}, category: ${a.category || 'unknown'}) → load with: window.getAssetUrl("${a.name}")`).join('\n')}\n\nDo NOT use BoxGeometry or primitive shapes for any of these assets. Use the correct Three.js loader for each file type.`
+    : '';
+
+  const userPrompt = isRefinement
+    ? `REFINEMENT REQUEST: ${prompt}${assetFileList}\n\nCurrent Code:\n${currentCode}${formatInstruction}`
+    : `NEW GAME REQUEST: ${prompt}${assetFileList}${formatInstruction}`;
 
   const contents: any[] = [];
 
