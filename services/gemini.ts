@@ -228,14 +228,27 @@ export const generateGame = async (
     Do NOT use robotic headers like [MECHANICAL DECONSTRUCTION] or [LOGIC BLUEPRINT]. 
     Talk directly to the user, enthusiastically describing the game mechanics, the assets you used, and how to play the game. Keep it engaging, helpful, and concise!
 
-    RESPONSE FORMAT: JSON with { code, title, explanation, suggestions, proposedLogicNodes }.
+    RESPONSE FORMAT - VERY IMPORTANT:
+    You MUST respond using EXACTLY this delimiter format. Do NOT use JSON. Do NOT use markdown code fences around the whole thing.
+    
+    ===TITLE===
+    (The game title, e.g. "Spider-Man Action Game")
+    ===CODE===
+    (The complete, self-contained HTML5 game code goes here - raw HTML, no escaping needed)
+    ===EXPLANATION===
+    (Your friendly conversational message to the user about what you built)
+    ===SUGGESTIONS===
+    (Write 3 short follow-up suggestions, one per line)
+    ===LOGIC_NODES===
+    (Write 3-5 logic nodes, one per line, in format: [Trigger] -> [Condition] -> [Action])
+    ===END===
   `;
 
-  const jsonInstruction = `\n\nCRITICAL: Your response MUST be valid JSON only. No markdown, no code fences, no explanation outside the JSON. Return ONLY a raw JSON object with these exact keys: { "code": "...", "title": "...", "explanation": "...", "suggestions": [...], "proposedLogicNodes": [...] }`;
+  const formatInstruction = `\n\nIMPORTANT: Respond ONLY in the delimiter format shown. Start with ===TITLE=== and end with ===END===. Do not wrap your response in JSON or markdown.`;
 
   const userPrompt = isRefinement 
-    ? `REFINEMENT: ${prompt}\n\nAssets: ${JSON.stringify(assetMetadata)}\n\nCurrent Code: ${currentCode}${jsonInstruction}`
-    : `NEW PROJECT: ${prompt}\n\nAssets: ${JSON.stringify(assetMetadata)}${jsonInstruction}`;
+    ? `REFINEMENT REQUEST: ${prompt}\n\nAvailable Assets: ${JSON.stringify(assetMetadata)}\n\nCurrent Code:\n${currentCode}${formatInstruction}`
+    : `NEW GAME REQUEST: ${prompt}\n\nAvailable Assets: ${JSON.stringify(assetMetadata)}${formatInstruction}`;
 
   const contents: any[] = [];
 
@@ -275,7 +288,6 @@ export const generateGame = async (
   
   const config: any = {
     systemInstruction,
-    responseMimeType: "application/json",
     maxOutputTokens: 8192,
     safetySettings: [
       { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
@@ -292,24 +304,36 @@ export const generateGame = async (
       config,
     });
     const text = (response.text || '').trim();
-    try {
-      // First attempt: direct parse
-      return JSON.parse(text);
-    } catch {
-      // Second attempt: extract JSON from markdown code fence
-      const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-      if (fenceMatch) {
-        try { return JSON.parse(fenceMatch[1].trim()); } catch {}
-      }
-      // Third attempt: find first { ... } block
-      const braceStart = text.indexOf('{');
-      const braceEnd = text.lastIndexOf('}');
-      if (braceStart !== -1 && braceEnd > braceStart) {
-        try { return JSON.parse(text.slice(braceStart, braceEnd + 1)); } catch {}
-      }
-      console.error('Neural Synthesis Error: Could not parse AI response.', text.substring(0, 500));
-      throw new Error('Neural Synthesis Error: The AI returned an invalid response format. Please try again or simplify your prompt.');
+
+    // --- Delimiter-based parser (immune to JSON escaping failures) ---
+    const extract = (tag: string, nextTag: string): string => {
+      const start = text.indexOf(`===${tag}===`);
+      const end = text.indexOf(`===${nextTag}===`);
+      if (start === -1) return '';
+      const content = end === -1 ? text.slice(start + tag.length + 6) : text.slice(start + tag.length + 6, end);
+      return content.trim();
+    };
+
+    const title = extract('TITLE', 'CODE');
+    const code = extract('CODE', 'EXPLANATION');
+    const explanation = extract('EXPLANATION', 'SUGGESTIONS');
+    const suggestionsRaw = extract('SUGGESTIONS', 'LOGIC_NODES');
+    const logicRaw = extract('LOGIC_NODES', 'END');
+
+    if (code && code.length > 100) {
+      const suggestions = suggestionsRaw.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 5);
+      const proposedLogicNodes = logicRaw.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 7);
+      return { code, title: title || 'Untitled Game', explanation: explanation || 'Game created!', suggestions, proposedLogicNodes };
     }
+
+    // Fallback: try to find any HTML block in the response
+    const htmlMatch = text.match(/<!DOCTYPE html[\s\S]*<\/html>/i) || text.match(/<html[\s\S]*<\/html>/i);
+    if (htmlMatch) {
+      return { code: htmlMatch[0], title: 'Generated Game', explanation: 'Your game is ready!', suggestions: [], proposedLogicNodes: [] };
+    }
+
+    console.error('Neural Synthesis: Could not find game code in response.', text.substring(0, 500));
+    throw new Error('The AI could not generate a game for this prompt. Please try rephrasing or adding more detail.');
   });
 };
 
