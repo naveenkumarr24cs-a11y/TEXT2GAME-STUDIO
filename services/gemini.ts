@@ -223,13 +223,9 @@ export const generateGame = async (
     - FULL FUNCTIONALITY: Write complete, operational code. Never leave stub methods, placeholder comments (like "// implement physics here"), or empty event handlers.
 
     MANDATORY EXPLANATION STRUCTURE:
-    [MECHANICAL DECONSTRUCTION]: A logical breakdown of the core loops, state transitions, and systemic interdependencies.
-    [PHYSICS ARCHITECTURE]: Technical breakdown of forces, collisions, raycasting, spatial partitioning, and physics materials.
-    [VISUAL & ATMOSPHERIC DESIGN]: Lighting setup, post-processing choices, and material properties.
-    [CONTROL MAPPING]: Detail the input modality handling for both Mobile (Gestures/Buttons) and Desktop.
-    [ASSET INTEGRATION]: How specific assets are bound to game entities, hierarchical structures, and stateful animations.
-    [LOGIC BLUEPRINT]: Explanation of the synthesized logic nodes and emergent gameplay possibilities.
-    [DEBUGGING REPORT]: (Only if visual input was provided) Analysis of detected issues and explanation of the fix.
+    Write a natural, friendly, and conversational response (like a helpful AI assistant) explaining what you just built or changed in the game. 
+    Do NOT use robotic headers like [MECHANICAL DECONSTRUCTION] or [LOGIC BLUEPRINT]. 
+    Talk directly to the user, enthusiastically describing the game mechanics, the assets you used, and how to play the game. Keep it engaging, helpful, and concise!
 
     RESPONSE FORMAT: JSON with { code, title, explanation, suggestions, proposedLogicNodes }.
   `;
@@ -370,28 +366,33 @@ export const generateLogicNodes = async (prompt: string, assets: GameAsset[]): P
 };
 
 export const classifyIntent = async (prompt: string): Promise<'chat' | 'game'> => {
-  return executeWithNeuralResilience(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `You are an intent classifier for a game engine AI. 
-      Classify the following user message as either "chat" or "game".
+  try {
+    return await executeWithNeuralResilience(async (ai) => {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `You are an intent classifier for a game engine AI. 
+        Classify the following user message as either "chat" or "game".
+        
+        Rules:
+        - "game": The default intent. If the user asks to create, build, make, generate, add, change, fix, or mentions a game, mechanics, characters, or 3D assets, it is ALWAYS "game". Even simple phrases like "create a game" or "make a car game" must be "game".
+        - "chat": ONLY use this for simple greetings (hi, hello), small talk, saying thanks, or asking "what can you do?". If there is ANY mention of creating or modifying a game, do NOT use "chat".
+        
+        Respond ONLY with the exact word "chat" or "game". Do not include any other text, markdown, or punctuation.
+        
+        User message: "${prompt}"`,
+        config: {
+          maxOutputTokens: 10,
+          temperature: 0.1
+        }
+      });
       
-      Rules:
-      - "chat": Greetings (hi, hello), small talk, asking what you can do, thanks, or vague one-word messages.
-      - "game": Any request that clearly describes a game to build, a mechanic to add, an asset to modify, or implies they want you to generate code.
-      
-      Respond ONLY with the exact word "chat" or "game". Do not include any other text, markdown, or punctuation.
-      
-      User message: "${prompt}"`,
-      config: {
-        maxOutputTokens: 10,
-        temperature: 0.1
-      }
+      const text = (response.text || '').trim().toLowerCase();
+      return text.includes('chat') && !text.includes('game') ? 'chat' : 'game';
     });
-    
-    const text = (response.text || '').trim().toLowerCase();
-    return text.includes('game') ? 'game' : 'chat';
-  });
+  } catch (error) {
+    console.warn("Intent classification failed, defaulting to 'game':", error);
+    return 'game'; // Default to game if network fails, to allow game generation to try
+  }
 };
 
 export const chatWithAI = async (prompt: string, history: ChatMessage[] = []): Promise<string> => {
