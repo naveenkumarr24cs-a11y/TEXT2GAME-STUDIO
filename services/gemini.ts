@@ -337,7 +337,43 @@ export const generateGame = async (
       return { code, title: title || 'Untitled Game', explanation: explanation || 'Game created!', suggestions, proposedLogicNodes };
     }
 
-    // Fallback: try to find any HTML block in the response
+    // Fallback 1: AI returned JSON (ignoring delimiter format) — try to parse it
+    const tryJson = (src: string) => {
+      try {
+        const parsed = JSON.parse(src);
+        if (parsed && parsed.code && parsed.code.length > 100) {
+          return {
+            code: parsed.code,
+            title: parsed.title || 'Generated Game',
+            explanation: typeof parsed.explanation === 'string' ? parsed.explanation : 'Game created!',
+            suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
+            proposedLogicNodes: Array.isArray(parsed.proposedLogicNodes) ? parsed.proposedLogicNodes : []
+          };
+        }
+      } catch {}
+      return null;
+    };
+
+    // Try direct JSON parse
+    const directJson = tryJson(text);
+    if (directJson) return directJson;
+
+    // Try extracting JSON from a markdown code fence ```json ... ```
+    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) {
+      const fromFence = tryJson(fenceMatch[1].trim());
+      if (fromFence) return fromFence;
+    }
+
+    // Try extracting the first { ... } block
+    const braceStart = text.indexOf('{');
+    const braceEnd = text.lastIndexOf('}');
+    if (braceStart !== -1 && braceEnd > braceStart) {
+      const fromBraces = tryJson(text.slice(braceStart, braceEnd + 1));
+      if (fromBraces) return fromBraces;
+    }
+
+    // Fallback 2: look for any raw HTML block in the response
     const htmlMatch = text.match(/<!DOCTYPE html[\s\S]*<\/html>/i) || text.match(/<html[\s\S]*<\/html>/i);
     if (htmlMatch) {
       return { code: htmlMatch[0], title: 'Generated Game', explanation: 'Your game is ready!', suggestions: [], proposedLogicNodes: [] };
