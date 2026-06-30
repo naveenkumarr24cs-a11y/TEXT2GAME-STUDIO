@@ -274,6 +274,7 @@ export const generateGame = async (
   
   const config: any = {
     systemInstruction,
+    responseMimeType: "application/json",
     maxOutputTokens: 8192
   };
 
