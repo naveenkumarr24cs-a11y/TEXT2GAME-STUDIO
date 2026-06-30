@@ -369,3 +369,50 @@ export const generateLogicNodes = async (prompt: string, assets: GameAsset[]): P
   });
 };
 
+export const classifyIntent = async (prompt: string): Promise<'chat' | 'game'> => {
+  return executeWithNeuralResilience(async (ai) => {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `You are an intent classifier for a game engine AI. 
+      Classify the following user message as either "chat" or "game".
+      
+      Rules:
+      - "chat": Greetings (hi, hello), small talk, asking what you can do, thanks, or vague one-word messages.
+      - "game": Any request that clearly describes a game to build, a mechanic to add, an asset to modify, or implies they want you to generate code.
+      
+      Respond ONLY with the exact word "chat" or "game". Do not include any other text, markdown, or punctuation.
+      
+      User message: "${prompt}"`,
+      config: {
+        maxOutputTokens: 10,
+        temperature: 0.1
+      }
+    });
+    
+    const text = (response.text || '').trim().toLowerCase();
+    return text.includes('game') ? 'game' : 'chat';
+  });
+};
+
+export const chatWithAI = async (prompt: string, history: ChatMessage[] = []): Promise<string> => {
+  return executeWithNeuralResilience(async (ai) => {
+    const contents: any[] = [];
+    
+    history.forEach(msg => {
+      contents.push({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.text }] });
+    });
+    
+    contents.push({ role: 'user', parts: [{ text: prompt }] });
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents,
+      config: {
+        systemInstruction: "You are a helpful, friendly AI assistant built into TEXT2GAME STUDIO. You can build 3D games from scratch using text prompts. Respond to the user naturally, keep it brief and conversational.",
+        maxOutputTokens: 1024
+      }
+    });
+    
+    return (response.text || '').trim() || "I'm here to help!";
+  });
+};

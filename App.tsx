@@ -4,7 +4,7 @@ import { AssetUploader } from './components/AssetUploader';
 import { GameRunner } from './components/GameRunner';
 import { AIChat } from './components/AIChat';
 import { AssetPreview } from './components/AssetPreview';
-import { generateGame, brainstormGame, generateLogicNodes } from './services/gemini';
+import { generateGame, brainstormGame, generateLogicNodes, classifyIntent, chatWithAI } from './services/gemini';
 import {
   GameAsset,
   GenerationStatus,
@@ -212,11 +212,38 @@ const App: React.FC = () => {
       }
 
       try {
+        let intent: 'chat' | 'game' = 'game';
+        if (!isAutoSync) {
+          intent = await classifyIntent(instruction);
+        }
+
+        const userMsg: ChatMessage = { 
+          role: 'user', 
+          text: instruction,
+          attachments: attachments?.map(a => ({ id: a.id, preview: a.preview, type: a.type }))
+        };
+
+        if (intent === 'chat') {
+           const reply = await chatWithAI(instruction, chatHistory);
+           setChatHistory([
+             ...chatHistory,
+             userMsg,
+             {
+               role: 'ai',
+               text: reply,
+             },
+           ]);
+           setStatus({ step: 'ready', message: 'Ready.' });
+           setIsLiveSyncing(false);
+           return;
+        }
+
         const result = await generateGame(instruction, assets, chatHistory, game?.code || '', aiMode, attachments);
-        setGame({ code: result.code, title: result.title });
+        setGame({ code: result.code, title: result.title || game?.title || 'Untitled Game' });
         if (!isAutoSync) {
           setChatHistory([
             ...chatHistory,
+            userMsg,
             {
               role: 'ai',
               text: typeof result.explanation === 'string' ? result.explanation : JSON.stringify(result.explanation || 'Game generated successfully.', null, 2),
