@@ -1,0 +1,8 @@
+{
+  "name": "Copy of Copy of spiderman",
+  "description": "An AI-powered game development platform where you upload assets and prompts to generate fully playable web games instantly.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
