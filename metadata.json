@@ -1,0 +1,11 @@
+{
+  "name": "Remix: Remix: Remix: Remix: text2game UI",
+  "description": "An AI-powered game development platform where you upload assets and prompts to generate fully playable web games instantly.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
